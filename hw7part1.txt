@@ -1,0 +1,95 @@
+                                                  
+part 1
+
+A.
+Running the producer-consumer code leads to a livelock issue when NUM_PROD_CONS_THREADS
+is greater than or equal to 3. It enters an infinite cycle because threads are waiting
+on resources that are never available, this is happening because of the mutliple threads
+(greater than 2) producer could be going to fast and/or consumer is going to slow. The 
+cause of the bug is a failure to correctly handle the semaphore count, which leads to 
+blocked threads not being notified when they should be. The note gives an example of this
+showing two threads blocked, one thread ready to post and the count goes from -2 to -1 
+showing neither can return since allows one thread to proceed, and the second thread is 
+left stuck. This is an issue in concurrent programming, where improper synchronization can 
+lead to threads being blocked indefinitely.
+
+B.
+The bug in parent-child-tasks is the child accessing buffer[idx++] before it's allocated,
+causing a SEGFAULT. The bug in the parent-child-tasks.c program is a race condition
+between the parent and child threads involving the initialization and access of the shared
+buffer. The child thread sets idx = INITIALIZE and length = 100, then proceeds to access
+and write to buffer[idx++] before the parent has a chance to allocate memory for buffer
+using malloc. Since there is no synchronization to ensure that the parent completes the
+buffer allocation before the child accesses it, this results in a segmentation fault when
+the child writes to a NULL or uninitialized pointer. The bug occurs because there is no
+semaphore protecting  where the buffer is being allocated, allowing the child to proceed
+prematurely and access invalid memory.
+
+C.
+The bug is a deadlock caused by two threads acquiring mutexes in different orders.
+Specifically, thread_worker1 locks mutex2 first and then mutex1, while thread_worker2
+locks mutex1 first and then mutex2. This inconsistent lock order creates a circular wait:
+if thread 1 locks mutex2 and waits for mutex1 while thread 2 has locked mutex1 and waits
+for mutex2, neither thread can proceed, leading to a deadlock. This is shown in Mcmini. To
+fix the bug, we need to ensure both threads acquire the mutexes in the same order. A
+simple fix would be to change thread_worker1 so that it locks mutex1 first, then mutex2
+just like thread_worker2.
+
+D.
+The bug in the given code is caused by using pthread_cond_signal(&cond) instead of
+pthread_cond_broadcast(&cond). The signal only wakes up a single waiting thread, which can
+lead to deadlock. Specifically, if a thread is blocked due to certain conditions, like
+active writers or readers, and the signaled thread is still unable to proceed, no other
+threads are signaled, causing the system to hang. To fix this, the code should use
+pthread_cond_broadcast(&cond) in both the reader and writer functions, ensuring that all
+waiting threads are awakened and given the opportunity to re-check the conditions and
+proceed if they can. pthread_cond_signal wakes up only one thread waiting on the condition
+variable. If that thread cannot proceed, the system may get stuck because no other waiting
+threads are signaled. pthread_cond_broadcast wakes up all waiting threads, allowing each
+to re-check the condition and proceed if it’s now safe to do so. This change ensures
+fairness and prevents missed wakeups, avoiding the deadlock or infinite loop issue. 
+
+Where to change:
+num_active_readers--;
+pthread_cond_broadcast(&cond); // was signal
+
+num_active_writers--;
+pthread_cond_broadcast(&cond); // was signal
+
+E.
+The bug in this code is a livelock that occurs in the barrier() function due to incorrect
+use of mutexes and busy-wait loops. Specifically, after a thread sets its entry in the
+barrierArray, it enters a while loop to wait for the other thread to do the same, but it
+does so while holding the mutex. Since both threads hold the mutex while waiting, neither
+can proceed to update or check the shared barrierArray values, and both get stuck
+indefinitely. This results in a livelock because the threads are not blocked, they are
+continuously running without making progress. The mutex prevents the other thread from
+updating the array, so the condition in the loop never changes, and the threads remain
+trapped in the loop.
+
+F.
+The bug in this code is a potential deadlock in the mybarrier function caused by reusing
+the same semaphore for multiple barrier phases without resetting or tracking the barrier
+phase. When multiple threads reach the barrier, all but one wait on the semaphore using
+sem_wait(), and the last thread releases the others by calling sem_post() multiple times.
+However, there's no mechanism ensuring that all threads from one barrier phase have exited
+the barrier before a new phase begins. This means some threads can enter the next barrier
+phase and increment num_threads_in_barrier before others have finished decrementing it
+from the previous phase. As a result, the condition ++num_threads_in_barrier ==
+num_threads_total might never be true again in a future phase, because the counter is
+already offset—leading to a state where all threads are stuck on sem_wait() and no one
+calls sem_post(), causing a deadlock.
+
+
+
+
+README
+
+part 1 answers are in part1.txt
+
+
+when running make check on my part.c after compiling it seems to work having all 5 readers
+execute as well as the 2 writers. Something I am unsure of though is the order that they
+are output when I run make in my terminal. Besides that it seems to work as planned having the writers and readers broadcast to or signaled when neccessary.
+
+
